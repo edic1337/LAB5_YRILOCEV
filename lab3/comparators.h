@@ -19,7 +19,7 @@ static inline int intEquals(const void *a, const void *b)
 
 static inline int intGreater(const void *a, const void *b) // я за вас все компараторы писать не буду, пишите свои. я принцип показал
 {
-    return *(int *)a > *(int *)b;
+    return *(int\ *)a > *(int *)b;
 }
 
 static inline int shortEquals(const void *a, const void *b)
@@ -114,13 +114,4 @@ static inline int stringEquals(const void *a, const void *b)
 {
     return strcmp((const char *)a, (const char *)b) == 0;
 }
-
-// Структура для тестирования работы со сложными типами
-typedef struct {
-    int id;
-    char name[32];
-    float value;
-} TestStruct;
-
-
 #endif
