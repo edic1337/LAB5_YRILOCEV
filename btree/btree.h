@@ -33,7 +33,11 @@ void freeBTreeNode(BTreeNode* node);
 void splitChild(BTreeNode* node, int index); // узел родителя, индекс ребенка для сплита
 
 void btreeInsert(BTree* tree, const char* key, int doc_id, const char* title);
+
 Vector* btreeSearch(const BTree* tree, const char* key);
+
+void traverseNode(BTreeNode* node,
+     void (*visit)(const char*, Vector*, void*), void* ctx);
 
 void btreeTraverse(
     const BTree* tree,

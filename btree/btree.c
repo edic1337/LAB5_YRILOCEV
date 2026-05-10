@@ -194,14 +194,14 @@ void btreeInsert(BTree* tree, const char* key, int doc_id, const char* title) {
     curr_node->postings[i + 1] = list;
 
     curr_node->key_count += 1;
+    tree->unique_key += 1;
 }
 
 
 Vector* btreeSearch(const BTree* tree, const char* key) {
-    Vector* error = createVector(sizeof(values_from_keys));
     BTreeNode* node = tree->root;
     if (!node || node->key_count == 0) {
-        return error;
+        return NULL;
     }
 
     int curr_value;
@@ -213,7 +213,6 @@ Vector* btreeSearch(const BTree* tree, const char* key) {
             curr_value = strcmp(key, node->keys[i]);
 
             if (curr_value == 0) {
-                vectorFree(error);
                 return node->postings[i];
             }
 
@@ -233,10 +232,38 @@ Vector* btreeSearch(const BTree* tree, const char* key) {
         curr_value = strcmp(key, node->keys[j]);
 
         if (curr_value == 0) {
-            vectorFree(error);
             return node->postings[j];
         }
     }
 
-    return error;
+    return NULL;
+}
+
+
+void traverseNode(BTreeNode* node,
+     void (*visit)(const char*, Vector*, void*), void* ctx) {
+        if (!node) {
+            return;
+        }
+
+        if (node->is_leaf == 1) {
+            for (int i = 0; i < node->key_count; i++) {
+                visit(node->keys[i], node->postings[i], ctx);
+            }
+            return;
+        }
+
+        for (int j = 0; j < node->key_count; j++) {
+            traverseNode(node->children[j], visit, ctx);
+            visit(node->keys[j], node->postings[j], ctx);
+        }
+        traverseNode(node->children[node->key_count], visit, ctx);
+        return;
+}
+
+
+void btreeTraverse(const BTree* tree,
+    void (*visit)(const char* key, Vector* postings, void* ctx), void* ctx) {
+        BTreeNode* node = tree->root;
+        traverseNode(node, visit, ctx); 
 }
