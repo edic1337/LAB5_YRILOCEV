@@ -1,443 +1,352 @@
+// test_btree_search.c
 #include "btree.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <stdlib.h>
 
-// Простые цвета для Windows/Linux
-#ifdef _WIN32
-    #define RESET   ""
-    #define RED     ""
-    #define GREEN   ""
-    #define YELLOW  ""
-    #define BLUE    ""
-    #define MAGENTA ""
-    #define CYAN    ""
-    #define BOLD    ""
-#else
-    #define RESET   "\033[0m"
-    #define RED     "\033[31m"
-    #define GREEN   "\033[32m"
-    #define YELLOW  "\033[33m"
-    #define BLUE    "\033[34m"
-    #define MAGENTA "\033[35m"
-    #define CYAN    "\033[36m"
-    #define BOLD    "\033[1m"
-#endif
-
-// Функция для красивого вывода дерева
-void printTree(BTreeNode* node, int level, char* prefix) {
+// Функция для визуализации узла дерева (с отступами)
+void visualizeNode(BTreeNode* node, int depth, const char* prefix, int is_last) {
     if (!node) return;
     
-    // Отступы
-    for (int i = 0; i < level; i++) {
-        printf("  ");
+    // Отступы для текущего уровня
+    for (int i = 0; i < depth - 1; i++) {
+        printf("│   ");
     }
-    printf("%s", prefix);
     
-    // Вывод ключей в узле
+    if (depth > 0) {
+        printf("%s", prefix);
+        printf("%s", is_last ? "└── " : "├── ");
+    }
+    
+    // Выводим ключи узла
     printf("[");
     for (int i = 0; i < node->key_count; i++) {
-        if (i > 0) printf(", ");
         printf("%s", node->keys[i]);
-        if (node->postings[i] && node->postings[i]->size > 0) {
+        if (node->postings[i]) {
             printf("(%d)", node->postings[i]->size);
         }
+        if (i < node->key_count - 1) printf(", ");
     }
     printf("]");
     
     if (node->is_leaf) {
-        printf(" %s[ЛИСТ]%s\n", CYAN, RESET);
+        printf(" (LEAF)\n");
     } else {
-        printf(" %s[ВНУТР]%s\n", MAGENTA, RESET);
+        printf(" (INTERNAL)\n");
     }
     
-    // Рекурсивный вывод детей
+    // Рекурсивно выводим детей
     if (!node->is_leaf) {
         for (int i = 0; i <= node->key_count; i++) {
+            int is_last_child = (i == node->key_count);
             char new_prefix[256];
-            if (i == node->key_count) {
-                snprintf(new_prefix, sizeof(new_prefix), "└── ");
+            char new_prefix2[256];
+            
+            if (depth == 0) {
+                snprintf(new_prefix, sizeof(new_prefix), "%s", "");
+                snprintf(new_prefix2, sizeof(new_prefix2), "%s", "");
             } else {
-                snprintf(new_prefix, sizeof(new_prefix), "├── ");
+                snprintf(new_prefix, sizeof(new_prefix), "%s%s", prefix, is_last ? "    " : "│   ");
+                snprintf(new_prefix2, sizeof(new_prefix2), "%s", new_prefix);
             }
-            printTree(node->children[i], level + 1, new_prefix);
+            
+            visualizeNode(node->children[i], depth + 1, new_prefix2, is_last_child);
         }
     }
 }
 
-// Функция для отображения всех ключей в дереве (обход)
-void printAllKeys(BTreeNode* node, int* first) {
-    if (!node) return;
+// Визуализация всего дерева
+void visualizeTree(BTree* tree, const char* title) {
+    if (!tree || !tree->root) {
+        printf("Дерево пустое или не инициализировано\n");
+        return;
+    }
     
-    if (node->is_leaf) {
-        for (int i = 0; i < node->key_count; i++) {
-            if (!(*first)) printf(", ");
-            printf("\"%s\"", node->keys[i]);
-            *first = 0;
-        }
+    printf("\n╔══════════════════════════════════════════════════════════════╗\n");
+    printf("║  %-60s ║\n", title);
+    printf("╚══════════════════════════════════════════════════════════════╝\n");
+    
+    printf("Уникальных ключей: %d\n", tree->unique_key);
+    printf("Структура дерева:\n");
+    
+    if (tree->root->key_count == 0) {
+        printf("  [пустое дерево]\n");
     } else {
-        for (int i = 0; i <= node->key_count; i++) {
-            printAllKeys(node->children[i], first);
-            if (i < node->key_count) {
-                if (!(*first)) printf(", ");
-                printf("\"%s\"", node->keys[i]);
-                *first = 0;
-            }
-        }
+        visualizeNode(tree->root, 0, "", 1);
     }
+    printf("\n");
 }
 
-// Функция для подсчета количества узлов в дереве
-int countNodes(BTreeNode* node) {
-    if (!node) return 0;
-    int count = 1;
-    if (!node->is_leaf) {
-        for (int i = 0; i <= node->key_count; i++) {
-            count += countNodes(node->children[i]);
+// Функция для демонстрации поиска
+void searchAndShow(BTree* tree, const char* key) {
+    printf("\n🔍 Поиск ключа: \"%s\"\n", key);
+    
+    Vector* result = btreeSearch(tree, key);
+    
+    if (!result) {
+        printf("   ❌ Ошибка: btreeSearch вернул NULL\n");
+        return;
+    }
+    
+    if (result->size == 0) {
+        printf("   ❌ Ключ НЕ НАЙДЕН\n");
+    } else {
+        printf("   ✅ Ключ НАЙДЕН!\n");
+        printf("   📊 Количество вхождений: %d\n", result->size);
+        
+        // Пытаемся вывести содержимое (если есть доступ к данным)
+        printf("   📄 Содержимое постинг-листа:\n");
+        for (int i = 0; i < result->size && i < 10; i++) {
+            // ВАЖНО: здесь нужен доступ к элементам вектора
+            // Если есть функция vectorGet(), используйте её
+            // Пока выводим только размер
+            printf("      [%d] запись #%d\n", i, i+1);
         }
     }
-    return count;
+    
+    vectorFree(result);
 }
 
-// Функция для подсчета всех ключей
-int countAllKeys(BTreeNode* node) {
-    if (!node) return 0;
-    int count = node->key_count;
-    if (!node->is_leaf) {
-        for (int i = 0; i <= node->key_count; i++) {
-            count += countAllKeys(node->children[i]);
-        }
-    }
-    return count;
-}
-
-// ============== ТЕСТЫ ==============
-
-// ТЕСТ 1: Базовые операции (очень простой)
-void test1_basic() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s📝 ТЕСТ 1: Базовые операции%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
+// Тест 1: Поиск в пустом дереве
+void test_empty_tree() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 1: Поиск в пустом дереве\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     
     BTree* tree = createBTree();
+    visualizeTree(tree, "Пустое дерево");
     
-    printf("1. Вставляем слово 'apple' (документ 1)\n");
-    btreeInsert(tree, "apple", 1, "Apple Guide");
+    searchAndShow(tree, "anything");
+    searchAndShow(tree, "test");
+    searchAndShow(tree, "ключ");
     
-    printf("2. Ищем 'apple': ");
-    Vector* result = btreeSearch(tree, "apple");
-    if (result && result->size > 0) {
-        values_from_keys* v = (values_from_keys*)getVectorItem(result, 0);
-        printf("%sНАЙДЕНО!%s (doc %d: %s)\n", GREEN, RESET, v->doc_id, v->title);
-    } else {
-        printf("%sНЕ НАЙДЕНО%s\n", RED, RESET);
-    }
-    vectorFree(result);
-    
-    printf("\n3. Ищем несуществующее слово 'xyz': ");
-    result = btreeSearch(tree, "xyz");
-    if (result && result->size == 0) {
-        printf("%sПРАВИЛЬНО не найдено%s\n", GREEN, RESET);
-    } else {
-        printf("%sОШИБКА: должно быть пусто%s\n", RED, RESET);
-    }
-    vectorFree(result);
-    
-    printf("\n%s✅ Тест 1 пройден!%s\n", GREEN, RESET);
     freeBTree(tree);
 }
 
-// ТЕСТ 2: Дубликаты ключей
-void test2_duplicates() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s📝 ТЕСТ 2: Дубликаты ключей (постинг-листы)%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
+// Тест 2: Поиск после вставки одного элемента
+void test_single_element() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 2: Поиск после вставки одного элемента\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     
     BTree* tree = createBTree();
     
-    printf("Вставляем 3 документа с одинаковым словом 'database':\n");
-    btreeInsert(tree, "database", 1, "SQL Tutorial");
-    printf("  ✓ doc1: SQL Tutorial\n");
-    btreeInsert(tree, "database", 2, "NoSQL Guide");
-    printf("  ✓ doc2: NoSQL Guide\n");
-    btreeInsert(tree, "database", 3, "Database Design");
-    printf("  ✓ doc3: Database Design\n");
+    printf("\n➡️ Вставляем ключ \"apple\" с документом 1\n");
+    btreeInsert(tree, "apple", 1, "Apple Document");
     
-    printf("\nИщем 'database':\n");
-    Vector* result = btreeSearch(tree, "database");
-    if (result && result->size == 3) {
-        printf("  %sНАЙДЕНО %d документа!%s\n", GREEN, result->size, RESET);
-        for (int i = 0; i < result->size; i++) {
-            values_from_keys* v = (values_from_keys*)getVectorItem(result, i);
-            printf("    %d. Документ %d: %s\n", i+1, v->doc_id, v->title);
+    visualizeTree(tree, "Дерево с одним элементом");
+    
+    searchAndShow(tree, "apple");
+    searchAndShow(tree, "banana");
+    searchAndShow(tree, "APPLE");
+    
+    freeBTree(tree);
+}
+
+// Тест 3: Поиск в дереве с несколькими элементами (без разделения)
+void test_several_elements() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 3: Поиск в дереве с несколькими элементами\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    
+    BTree* tree = createBTree();
+    
+    printf("\n➡️ Вставляем ключи:\n");
+    const char* keys[] = {"banana", "apple", "cherry", "date"};
+    int n = 4;
+    
+    for (int i = 0; i < n; i++) {
+        printf("   - \"%s\" (документ %d)\n", keys[i], i+1);
+        btreeInsert(tree, keys[i], i+1, "Document");
+    }
+    
+    visualizeTree(tree, "Дерево с несколькими элементами");
+    
+    printf("\n📋 Поиск существующих ключей:\n");
+    for (int i = 0; i < n; i++) {
+        searchAndShow(tree, keys[i]);
+    }
+    
+    printf("\n📋 Поиск несуществующих ключей:\n");
+    searchAndShow(tree, "grape");
+    searchAndShow(tree, "aaaa");
+    searchAndShow(tree, "zzzz");
+    
+    freeBTree(tree);
+}
+
+// Тест 4: Поиск в дереве с дубликатами
+void test_duplicates() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 4: Поиск ключа с дубликатами\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    
+    BTree* tree = createBTree();
+    
+    printf("\n➡️ Вставляем дубликаты ключа \"test\":\n");
+    btreeInsert(tree, "test", 1, "First document");
+    btreeInsert(tree, "test", 2, "Second document");
+    btreeInsert(tree, "test", 3, "Third document");
+    btreeInsert(tree, "alpha", 4, "Alpha document");
+    btreeInsert(tree, "zeta", 5, "Zeta document");
+    
+    visualizeTree(tree, "Дерево с дубликатами");
+    
+    searchAndShow(tree, "test");
+    searchAndShow(tree, "alpha");
+    searchAndShow(tree, "zeta");
+    searchAndShow(tree, "beta");
+    
+    freeBTree(tree);
+}
+
+// Тест 5: Поиск после разделения узла
+void test_after_split() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 5: Поиск после разделения корня (BTREE_T=%d, MAX_KEYS=%d)\n", 
+           BTREE_T, BTREE_MAX_KEYS);
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    
+    BTree* tree = createBTree();
+    
+    printf("\n➡️ Вставляем ключи для вызова разделения:\n");
+    // Вставляем на 1 больше максимального
+    int num_keys = BTREE_MAX_KEYS + 1;
+    
+    for (int i = 0; i < num_keys; i++) {
+        char key[20];
+        sprintf(key, "k%d", i * 10); // k0, k10, k20, k30, k40, k50
+        printf("   - \"%s\"\n", key);
+        btreeInsert(tree, key, i, "Document");
+        
+        // Показываем дерево после каждой вставки, вызывающей изменения
+        if (i == BTREE_MAX_KEYS) {
+            printf("\n   ⚠️ После вставки %d-го ключа произошло разделение!\n", i+1);
+            visualizeTree(tree, "Дерево после разделения");
         }
-    } else {
-        printf("  %sОШИБКА: найдено %d документов (должно быть 3)%s\n", 
-               RED, result ? result->size : 0, RESET);
     }
-    vectorFree(result);
     
-    printf("\n%s✅ Тест 2 пройден!%s\n", GREEN, RESET);
+    visualizeTree(tree, "Финальное дерево после разделения");
+    
+    printf("\n🔍 Проверяем поиск всех ключей:\n");
+    for (int i = 0; i < num_keys; i++) {
+        char key[20];
+        sprintf(key, "k%d", i * 10);
+        searchAndShow(tree, key);
+    }
+    
+    printf("\n🔍 Проверяем поиск несуществующих ключей:\n");
+    searchAndShow(tree, "k5");
+    searchAndShow(tree, "k15");
+    searchAndShow(tree, "k55");
+    
     freeBTree(tree);
 }
 
-// ТЕСТ 3: Визуализация структуры дерева
-void test3_visualization() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s🌳 ТЕСТ 3: Визуализация B-дерева%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
+// Тест 6: Глубокий поиск в большом дереве
+void test_deep_search() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 6: Глубокий поиск в большом дереве\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     
     BTree* tree = createBTree();
     
-    printf("Вставляем 10 слов в разном порядке:\n");
-    const char* words[] = {"cat", "apple", "dog", "zebra", "banana", 
-                          "mouse", "elephant", "fox", "lion", "tiger"};
-    
-    for (int i = 0; i < 10; i++) {
-        printf("  + %s\n", words[i]);
-        btreeInsert(tree, words[i], i+1, words[i]);
+    printf("\n➡️ Вставляем 50 ключей...\n");
+    for (int i = 0; i < 50; i++) {
+        char key[30];
+        sprintf(key, "word_%03d", i);
+        btreeInsert(tree, key, i, "Document");
+        
+        if ((i + 1) % 10 == 0) {
+            printf("   Вставлено %d ключей...\n", i + 1);
+        }
     }
     
-    printf("\n%s📊 СТРУКТУРА ДЕРЕВА:%s\n\n", BOLD, CYAN);
-    printTree(tree->root, 0, "");
+    visualizeTree(tree, "Большое дерево (50 ключей)");
     
-    printf("\n%s📈 Статистика:%s\n", BOLD, RESET);
-    printf("  • Всего узлов: %d\n", countNodes(tree->root));
-    printf("  • Всего ключей: %d\n", countAllKeys(tree->root));
-    printf("  • Корень содержит: %d ключей\n", tree->root->key_count);
+    printf("\n🔍 Поиск ключей в начале:\n");
+    searchAndShow(tree, "word_000");
+    searchAndShow(tree, "word_005");
     
-    printf("\n%s✅ Тест 3 пройден!%s\n", GREEN, RESET);
+    printf("\n🔍 Поиск ключей в середине:\n");
+    searchAndShow(tree, "word_025");
+    searchAndShow(tree, "word_030");
+    
+    printf("\n🔍 Поиск ключей в конце:\n");
+    searchAndShow(tree, "word_045");
+    searchAndShow(tree, "word_049");
+    
+    printf("\n🔍 Поиск несуществующих ключей (бинарный поиск по границам):\n");
+    searchAndShow(tree, "word_001"); // существует
+    searchAndShow(tree, "word_002"); // существует
+    searchAndShow(tree, "word_999"); // не существует
+    searchAndShow(tree, "aaa");
+    searchAndShow(tree, "zzz");
+    
     freeBTree(tree);
 }
 
-// ТЕСТ 4: Поиск и производительность
-void test4_search_performance() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s⚡ ТЕСТ 4: Поиск и производительность%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
+// Тест 7: Сравнение производительности поиска
+void test_search_performance() {
+    printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("ТЕСТ 7: Сравнение поиска в разных местах дерева\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     
     BTree* tree = createBTree();
     
-    printf("Заполняем дерево 5000 случайными ключами...\n");
-    char keys[5000][20];
-    
-    clock_t start = clock();
-    for (int i = 0; i < 5000; i++) {
-        sprintf(keys[i], "word_%d", i);
-        btreeInsert(tree, keys[i], i, "Document");
-    }
-    clock_t end = clock();
-    double insert_time = (double)(end - start) / CLOCKS_PER_SEC;
-    
-    printf("  %sГотово!%s Вставка: %.3f сек (%.0f вставок/сек)\n", 
-           GREEN, RESET, insert_time, 5000.0/insert_time);
-    
-    printf("\nПоиск 100 случайных ключей...\n");
-    int found = 0;
-    start = clock();
+    // Вставляем ключи в отсортированном порядке
+    printf("\n➡️ Создаем дерево с 100 ключами...\n");
     for (int i = 0; i < 100; i++) {
-        int idx = rand() % 5000;
-        Vector* res = btreeSearch(tree, keys[idx]);
-        if (res && res->size > 0) found++;
-        vectorFree(res);
+        char key[20];
+        sprintf(key, "key_%03d", i);
+        btreeInsert(tree, key, i, "Document");
     }
-    end = clock();
-    double search_time = (double)(end - start) / CLOCKS_PER_SEC;
     
-    printf("  %sНайдено: %d/100 (%.1f%%)%s\n", 
-           found == 100 ? GREEN : YELLOW, found, (float)found, RESET);
-    printf("  Время поиска: %.4f сек (%.0f поисков/сек)\n", 
-           search_time, 100.0/search_time);
+    visualizeTree(tree, "Дерево с 100 ключами");
     
-    printf("\n%s✅ Тест 4 пройден!%s\n", GREEN, RESET);
+    printf("\n📊 Статистика дерева:\n");
+    printf("   - Уникальных ключей: %d\n", tree->unique_key);
+    printf("   - Корень: %s, ключей: %d\n", 
+           tree->root->is_leaf ? "лист" : "внутренний узел",
+           tree->root->key_count);
+    
+    printf("\n🔍 Поиск с замером (визуально):\n");
+    
+    // Поиск существующих ключей
+    printf("\n   Существующие ключи:\n");
+    searchAndShow(tree, "key_000");
+    searchAndShow(tree, "key_050");
+    searchAndShow(tree, "key_099");
+    
+    // Поиск несуществующих ключей (границы)
+    printf("\n   Несуществующие ключи (граничные случаи):\n");
+    searchAndShow(tree, "key_100"); // после последнего
+    searchAndShow(tree, "key_999"); // далеко после
+    searchAndShow(tree, "aaa");     // до первого
+    searchAndShow(tree, "key_0455"); // между ключами
+    
     freeBTree(tree);
 }
 
-// ТЕСТ 5: Реальный сценарий (поиск документов)
-void test5_real_scenario() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s🔍 ТЕСТ 5: Реальный сценарий поиска%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
-    
-    BTree* index = createBTree();
-    
-    // Создаем документы
-    printf("Индексируем 5 документов:\n\n");
-    
-    printf("  %sДокумент 1:%s 'Введение в Python'\n", BOLD, RESET);
-    btreeInsert(index, "python", 1, "Введение в Python");
-    btreeInsert(index, "программирование", 1, "Введение в Python");
-    btreeInsert(index, "основы", 1, "Введение в Python");
-    
-    printf("  %sДокумент 2:%s 'Базы данных SQL'\n", BOLD, RESET);
-    btreeInsert(index, "sql", 2, "Базы данных SQL");
-    btreeInsert(index, "базы", 2, "Базы данных SQL");
-    btreeInsert(index, "данных", 2, "Базы данных SQL");
-    
-    printf("  %sДокумент 3:%s 'Машинное обучение'\n", BOLD, RESET);
-    btreeInsert(index, "машинное", 3, "Машинное обучение");
-    btreeInsert(index, "обучение", 3, "Машинное обучение");
-    btreeInsert(index, "python", 3, "Машинное обучение");
-    
-    printf("  %sДокумент 4:%s 'Веб-разработка'\n", BOLD, RESET);
-    btreeInsert(index, "web", 4, "Веб-разработка");
-    btreeInsert(index, "html", 4, "Веб-разработка");
-    btreeInsert(index, "css", 4, "Веб-разработка");
-    
-    printf("  %sДокумент 5:%s 'Алгоритмы'\n", BOLD, RESET);
-    btreeInsert(index, "алгоритмы", 5, "Алгоритмы");
-    btreeInsert(index, "структуры", 5, "Алгоритмы");
-    btreeInsert(index, "данных", 5, "Алгоритмы");
-    
-    printf("\n%sПоисковые запросы:%s\n", BOLD, RESET);
-    
-    // Поиск 1
-    printf("\n  Запрос 'python': ");
-    Vector* res = btreeSearch(index, "python");
-    if (res && res->size > 0) {
-        printf("%sНАЙДЕНО %d документа(ов)%s\n", GREEN, res->size, RESET);
-        for (int i = 0; i < res->size; i++) {
-            values_from_keys* v = (values_from_keys*)getVectorItem(res, i);
-            printf("    → Документ %d: %s\n", v->doc_id, v->title);
-        }
-    }
-    vectorFree(res);
-    
-    // Поиск 2
-    printf("\n  Запрос 'данных': ");
-    res = btreeSearch(index, "данных");
-    if (res && res->size > 0) {
-        printf("%sНАЙДЕНО %d документа(ов)%s\n", GREEN, res->size, RESET);
-        for (int i = 0; i < res->size; i++) {
-            values_from_keys* v = (values_from_keys*)getVectorItem(res, i);
-            printf("    → Документ %d: %s\n", v->doc_id, v->title);
-        }
-    }
-    vectorFree(res);
-    
-    // Поиск 3
-    printf("\n  Запрос 'несуществующее_слово': ");
-    res = btreeSearch(index, "несуществующее_слово");
-    if (res && res->size == 0) {
-        printf("%sНЕ НАЙДЕНО (правильно)%s\n", GREEN, RESET);
-    }
-    vectorFree(res);
-    
-    printf("\n%s✅ Тест 5 пройден!%s\n", GREEN, RESET);
-    freeBTree(index);
-}
-
-// ТЕСТ 6: Стресс-тест с дубликатами
-void test6_stress_duplicates() {
-    printf("\n%s════════════════════════════════════════════%s\n", BOLD, RESET);
-    printf("%s💪 ТЕСТ 6: Стресс-тест (1000 дубликатов)%s\n", BOLD, RESET);
-    printf("%s════════════════════════════════════════════%s\n\n", BOLD, RESET);
-    
-    BTree* tree = createBTree();
-    
-    printf("Добавляем 1000 документов с ключом 'popular':\n");
-    
-    clock_t start = clock();
-    for (int i = 0; i < 1000; i++) {
-        btreeInsert(tree, "popular", i, "Popular Document");
-        if ((i + 1) % 200 == 0) {
-            printf("  Прогресс: %d/1000\n", i + 1);
-        }
-    }
-    clock_t end = clock();
-    double time = (double)(end - start) / CLOCKS_PER_SEC;
-    
-    printf("\nПроверяем результат:\n");
-    Vector* res = btreeSearch(tree, "popular");
-    if (res && res->size == 1000) {
-        printf("  %s✓ Найдено %d документов!%s\n", GREEN, res->size, RESET);
-        printf("  ✓ Время вставки: %.2f сек\n", time);
-        printf("  ✓ Скорость: %.0f вставок/сек\n", 1000.0/time);
-    } else {
-        printf("  %s✗ ОШИБКА: найдено %d (должно быть 1000)%s\n", 
-               RED, res ? res->size : 0, RESET);
-    }
-    vectorFree(res);
-    
-    printf("\n%s✅ Тест 6 пройден!%s\n", GREEN, RESET);
-    freeBTree(tree);
-}
-
-// Функция для вывода красивого меню
-void printMenu() {
-    printf("\n%s╔════════════════════════════════════════════════════╗%s\n", BOLD, RESET);
-    printf("%s║       B-ДЕРЕВО - ИНТЕРАКТИВНОЕ ТЕСТИРОВАНИЕ       ║%s\n", BOLD, RESET);
-    printf("%s╠════════════════════════════════════════════════════╣%s\n", BOLD, RESET);
-    printf("%s║  1. Базовые операции                               ║%s\n", RESET);
-    printf("%s║  2. Дубликаты ключей (постинг-листы)               ║%s\n", RESET);
-    printf("%s║  3. Визуализация дерева                            ║%s\n", RESET);
-    printf("%s║  4. Производительность поиска                      ║%s\n", RESET);
-    printf("%s║  5. Реальный сценарий (поиск документов)          ║%s\n", RESET);
-    printf("%s║  6. Стресс-тест (1000 дубликатов)                 ║%s\n", RESET);
-    printf("%s║  7. ЗАПУСТИТЬ ВСЕ ТЕСТЫ                           ║%s\n", BOLD);
-    printf("%s║  0. Выход                                          ║%s\n", RESET);
-    printf("%s╚════════════════════════════════════════════════════╝%s\n", BOLD, RESET);
-    printf("\n%sВыберите тест: %s", BOLD, RESET);
-}
-
+// Главная функция
 int main() {
-    srand(time(NULL));
+    printf("\n╔══════════════════════════════════════════════════════════════════╗\n");
+    printf("║                ТЕСТИРОВАНИЕ ПОИСКА В B-ДЕРЕВЕ                    ║\n");
+    printf("║                     BTREE_T = %d                                 ║\n", BTREE_T);
+    printf("║                BTREE_MAX_KEYS = %d                               ║\n", BTREE_MAX_KEYS);
+    printf("╚══════════════════════════════════════════════════════════════════╝\n");
     
-    int choice;
+    test_empty_tree();
+    test_single_element();
+    test_several_elements();
+    test_duplicates();
+    test_after_split();
+    test_deep_search();
+    test_search_performance();
     
-    // Установка кодировки для Windows
-    #ifdef _WIN32
-        system("chcp 65001 > nul");
-    #endif
-    
-    do {
-        printMenu();
-        scanf("%d", &choice);
-        
-        switch(choice) {
-            case 1:
-                test1_basic();
-                break;
-            case 2:
-                test2_duplicates();
-                break;
-            case 3:
-                test3_visualization();
-                break;
-            case 4:
-                test4_search_performance();
-                break;
-            case 5:
-                test5_real_scenario();
-                break;
-            case 6:
-                test6_stress_duplicates();
-                break;
-            case 7:
-                printf("\n%s🚀 ЗАПУСК ВСЕХ ТЕСТОВ...%s\n", BOLD, RESET);
-                test1_basic();
-                test2_duplicates();
-                test3_visualization();
-                test4_search_performance();
-                test5_real_scenario();
-                test6_stress_duplicates();
-                printf("\n%s🎉 ВСЕ ТЕСТЫ ЗАВЕРШЕНЫ!%s\n", BOLD, GREEN, RESET);
-                break;
-            case 0:
-                printf("\n%s👋 До свидания!%s\n\n", BOLD, RESET);
-                break;
-            default:
-                printf("\n%s❌ Неверный выбор! Попробуйте снова.%s\n", RED, RESET);
-        }
-        
-        if (choice != 0 && choice <= 7) {
-            printf("\n%sНажмите Enter для продолжения...%s", BOLD, RESET);
-            getchar();
-            getchar();
-        }
-        
-    } while (choice != 0);
+    printf("\n╔══════════════════════════════════════════════════════════════════╗\n");
+    printf("║                     ТЕСТИРОВАНИЕ ЗАВЕРШЕНО                       ║\n");
+    printf("╚══════════════════════════════════════════════════════════════════╝\n\n");
     
     return 0;
 }

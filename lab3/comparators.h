@@ -19,7 +19,7 @@ static inline int intEquals(const void *a, const void *b)
 
 static inline int intGreater(const void *a, const void *b) // я за вас все компараторы писать не буду, пишите свои. я принцип показал
 {
-    return *(int\ *)a > *(int *)b;
+    return *(int *)a > *(int *)b;
 }
 
 static inline int shortEquals(const void *a, const void *b)
