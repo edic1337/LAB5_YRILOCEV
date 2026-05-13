@@ -246,3 +246,20 @@ void rbInsert(RBTree* tree, const char* key, int doc_id, const char* title) {
     rbInsertFixup(tree, newNode);
 
 }
+
+static void rbTraverseHelper(RBNode* node, RBNode* nil, void (*visit)(const char* key, Vector* postings, void* ctx), void* ctx) {
+    if (node == nil) {
+        return;
+    }
+
+    rbTraverseHelper(node->left, nil, visit, ctx);
+    visit(node->key, node->postings, ctx);
+    rbTraverseHelper(node->right, nil, visit, ctx);
+}
+
+void rbTraverse(const RBTree* tree, void (*visit)(const char* key, Vector* postings, void* ctx), void* ctx) {
+    if (tree == NULL || visit == NULL) {
+        return;
+    }
+    rbTraverseHelper(tree->root, tree->nil, visit, ctx);
+}
