@@ -20,10 +20,18 @@ typedef struct {
     int     size;
 } RBTree;
 
+static RBNode* createRBNode(RBNode* nil, const char* key, int doc_id, const char* title);
 RBTree* createRBTree(void);
+
+static void freeRBTreeHelper(RBNode* node, RBNode* nil);
 void    freeRBTree(RBTree* tree);
 
+static void leftRotate(RBTree* tree, RBNode* node);
+static void rightRotate(RBTree* tree, RBNode* node);
+static void rbInsertFixup(RBTree* tree, RBNode * node);
+
 void    rbInsert(RBTree* tree, const char* key, int doc_id, const char* title);
+static void rbTraverseHelper(RBNode* node, RBNode* nil, void (*visit)(const char* key, Vector* postings, void* ctx), void* ctx);
 Vector* rbSearch(const RBTree* tree, const char* key);
 void    rbTraverse(
     const RBTree* tree,
