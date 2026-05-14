@@ -8,7 +8,9 @@
 // функция создания узла дерева
 static RBNode* createRBNode(RBNode* nil, const char* key, int doc_id, const char* title) {
     RBNode* node = (RBNode*)malloc(sizeof(RBNode));
-    if (!node) return NULL;
+    if (!node) {
+        return NULL;
+    }
 
     node->key = (char*)malloc(strlen(key) + 1);
     if (!node->key) {
@@ -32,7 +34,9 @@ static RBNode* createRBNode(RBNode* nil, const char* key, int doc_id, const char
 // создание пустого дерева
 RBTree* createRBTree(void) {
     RBTree* tree = (RBTree*)malloc(sizeof(RBTree));
-    if (!tree) return NULL;
+    if (!tree) {
+        return NULL;
+    }
 
     tree->nil = (RBNode*)malloc(sizeof(RBNode));
     if (!tree->nil) {
@@ -55,7 +59,9 @@ RBTree* createRBTree(void) {
 
 // вспомогательная функция для рекурсивного освобождения памяти дерева
 static void freeRBTreeHelper(RBNode* node, RBNode* nil) {
-    if (node == nil) return;
+    if (node == nil) {
+        return;
+    }
 
     // освобождаем левое поддерево
     freeRBTreeHelper(node->left, nil);
@@ -69,7 +75,9 @@ static void freeRBTreeHelper(RBNode* node, RBNode* nil) {
 
 // очистка памяти дерева
 void freeRBTree(RBTree* tree) {
-    if (!tree) return NULL;
+    if (!tree) {
+        return;
+    }
 
     // рекурсивно освобождаем все узлы
     freeRBTreeHelper(tree->root, tree->nil);
@@ -78,7 +86,9 @@ void freeRBTree(RBTree* tree) {
 }
 
 Vector* rbSearch(const RBTree* tree, const char* key) {
-    if (!tree || !key) return NULL;
+    if (!tree || !key) {
+        return NULL;
+    }
 
     RBNode* current = tree->root;
     while (current != tree->nil) {
@@ -88,11 +98,9 @@ Vector* rbSearch(const RBTree* tree, const char* key) {
         if (cmp == 0) {
             return current->postings;
         } else if (cmp < 0) {
-            // если ключ меньше, то идем влево
-            return current->left;
+            current = current->left; // Просто идем дальше по циклу
         } else {
-            // ключ больше - идем право
-            return current->right;
+            current = current->right;
         }
     }
 
@@ -102,7 +110,9 @@ Vector* rbSearch(const RBTree* tree, const char* key) {
 
 // левая ротация
 static void leftRotate(RBTree* tree, RBNode* node) {
-    if (!tree || !node) return NULL;
+    if (!tree || !node) {
+        return;
+    }
 
     RBNode* right = node->right;
 
@@ -114,8 +124,8 @@ static void leftRotate(RBTree* tree, RBNode* node) {
 
     // подвешиваем right на место node
     right->parent = node->parent;
-    if (node->parent != tree->nil) {
-        tree->root = right->parent;
+    if (node->parent == tree->nil) {
+        tree->root = right;
     } else if (node == node->parent->left) {
         node->parent->left = right;
     } else {
@@ -129,7 +139,9 @@ static void leftRotate(RBTree* tree, RBNode* node) {
 
 // правая ротация
 static void rightRotate(RBTree* tree, RBNode* node) {
-    if (!tree || !node) return NULL;
+    if (!tree || !node) {
+        return;
+    }
 
     RBNode* left = node->left;
 
@@ -141,9 +153,9 @@ static void rightRotate(RBTree* tree, RBNode* node) {
 
     // подвешиваем left на место node
     left->parent = node->parent;
-    if (node->parent != tree->nil) {
-        tree->root = left->parent;
-    } else if (node == node->parent->left) {
+    if (node->parent == tree->nil) {
+        tree->root = left;
+    } else if (node == node->parent->right) {
         node->parent->right = left;
     } else {
         node->parent->left = left;
@@ -155,7 +167,7 @@ static void rightRotate(RBTree* tree, RBNode* node) {
 }
 
 static void rbInsertFixup(RBTree* tree, RBNode * node) {
-    while (node->parent->color == RB_RED) {
+    while (node != tree->root && node->parent->color == RB_RED) {
         if (node->parent == node->parent->parent->left) {
             // родитель - левый потомок своего родителя
             RBNode* uncle = node->parent->parent->right;
@@ -203,7 +215,9 @@ static void rbInsertFixup(RBTree* tree, RBNode * node) {
 }
 
 void rbInsert(RBTree* tree, const char* key, int doc_id, const char* title) {
-    if (!tree || !key) return NULL;
+    if (!tree || !key) {
+        return;
+    }
 
     // находим позицию для вставки
     RBNode* parent = tree->nil;
@@ -221,12 +235,15 @@ void rbInsert(RBTree* tree, const char* key, int doc_id, const char* title) {
         } else {
             // если ключ уже существует просто добавляем в postings
             appendPosting(current->postings, doc_id, title);
+            return;
         }
     }
 
     // создем новый красный узел
     RBNode* newNode = createRBNode(tree->nil, key, doc_id, title);
-    if (!newNode) return NULL;
+    if (!newNode) {
+        return;
+    }
 
     newNode->parent = parent;
 

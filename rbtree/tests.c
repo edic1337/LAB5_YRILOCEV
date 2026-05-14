@@ -3,6 +3,7 @@
 #include "rbtree.h"
 #include "../posting.h"
 #include "../lab3/vector/generic.h"
+#include <windows.h>
 
 void log_result(const char* task, const char* message) {
     printf("[%s] %s\n", task, message);
@@ -42,6 +43,8 @@ void test_visit(const char* key, Vector* postings, void* ctx) {
 }
 
 int main() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
     
     log_result("создание", "Начинаем тестирование");
     RBTree* tree = createRBTree();
@@ -55,7 +58,7 @@ int main() {
 
     log_result("Вставка и Поиск", "Начинаем тестирование");
 
-    RBTree* tree = createRBTree();
+    tree = createRBTree();
 
     // стандартная вставка
     rbInsert(tree, "zebra", 10, "ZebraDoc");
@@ -117,7 +120,7 @@ int main() {
 
     log_result("Дубликаты ключей", "Начинаем расширенное тестирование");
 
-    RBTree* tree = createRBTree();
+    tree = createRBTree();
 
     // вставка первого элемента
     rbInsert(tree, "apple", 1, "First");
@@ -148,7 +151,7 @@ int main() {
     
     assert(tree->size == 2); // Только "apple" и "banana"
     
-    Vector* v_apple = rbSearch(tree, "apple");
+    v_apple = rbSearch(tree, "apple");
     assert(getPostingCount(v_apple) == 5);
     assert(strcmp(getPostingTitle(v_apple, 4), "Fifth") == 0);
     
@@ -178,7 +181,7 @@ int main() {
 
     log_result("Обход дерева", "Начинаем тестирование");
 
-    RBTree* tree = createRBTree();
+    tree = createRBTree();
     
     // вставляем ключи в хаотичном порядке
     rbInsert(tree, "mango", 1, "Doc");
@@ -218,7 +221,7 @@ int main() {
 
     log_result("Тестирование поиска несуществующих ключей(негативные сценарии)", "Начинаем тестирование");
 
-    RBTree* tree = createRBTree();
+    tree = createRBTree();
     
     rbInsert(tree, "cat", 1, "D1");
     rbInsert(tree, "dog", 1, "D2");
@@ -249,7 +252,7 @@ int main() {
     assert(rbSearch(tree, "long_non_existent_key_that_is_very_long") == NULL);
 
     // поиск в пустом дереве (проверка на случай, если tree->root == tree->nil)
-    RBTree* emptyTree = createRBTree();
+    emptyTree = createRBTree();
     assert(rbSearch(emptyTree, "anything") == NULL);
     freeRBTree(emptyTree);
     freeRBTree(tree);
@@ -260,7 +263,7 @@ int main() {
 
     log_result("Пустое дерево", "Начинаем тестирование");
 
-    RBTree* emptyTree = createRBTree();
+    emptyTree = createRBTree();
     
     // проверка размера после создания
     assert(emptyTree->size == 0);
@@ -272,7 +275,7 @@ int main() {
     assert(rbSearch(emptyTree, NULL) == NULL);
 
     // обход пустого дерева (не должен ничего вызывать)
-    int emptyCount = 0;
+    emptyCount = 0;
     rbTraverse(emptyTree, test_visit, &emptyCount);
     assert(emptyCount == 0);
 
