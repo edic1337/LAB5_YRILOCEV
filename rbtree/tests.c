@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include "rbtree.h"
+#include "../posting.h"
+#include "../lab3/vector/generic.h"
 
 void log_result(const char* task, const char* message) {
     printf("[%s] %s\n", task, message);
@@ -12,6 +14,17 @@ typedef struct {
     int current_index;
     int total_count;
 } TraverseContext;
+
+// получение количества элементов
+size_t getPostingCount(Vector* v) {
+    return v->size;
+}
+
+// получение заголовка по индексу
+const char* getPostingTitle(Vector* v, int index) {
+    PostingEntry* entry = (PostingEntry*)getVectorItem(v, index);
+    return entry->title; 
+}
 
 // для проверки порядка 
 void test_traverse_order(const char* key, Vector* postings, void* ctx) {
