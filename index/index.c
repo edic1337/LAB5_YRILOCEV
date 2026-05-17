@@ -83,7 +83,7 @@ void traverseIndex(
 ) {
     if (idx == NULL|| idx -> tree == NULL) {
         printf("idx is NULL od tree is NULL");
-        return NULL;
+        return ;
     }
     switch (idx -> type) {
         case TREE_BTREE:
