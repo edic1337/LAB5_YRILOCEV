@@ -26,8 +26,8 @@
 */
 
 #include <stddef.h>
-#include "../../vector/generic.h"
-#include "../../comparators.h"
+#include "../../lab3/vector/generic.h"
+#include "../../lab3/comparators.h"
 
 #define SLOT_EMPTY 0   // Слот пуст, никогда не использовался
 #define SLOT_OCCUPIED 1 // Слот содержит действительную пару ключ–значение
