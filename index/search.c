@@ -41,7 +41,7 @@ Vector* intersectPostings(Vector** lists, int n) {
     for (int i = 1; i < n; i++) {
         Vector* next_result = intersectTwoPostings(current_result, lists[i]);
         if (current_result != lists[0]) {
-            freeVector(current_result); 
+            vectorFree(current_result); 
         }
         current_result = next_result;
         if (current_result -> size == 0) {
@@ -108,34 +108,47 @@ SearchResults* search(Index* idx, const char* query) {
     Vector* intersected = intersectPostings(posting_lists, n_tokens);
     sr -> total = intersected -> size;
     if (sr -> total > 0) {
-        // временный массив для удобной qsort-сортировки
+        // временный массив для сортировки
         SearchResult* temp_results = (SearchResult*)malloc(sr -> total * sizeof(SearchResult));
-
+        // копируем всё из вектора
         for (int i = 0; i < sr -> total; i++) {
             values_from_keys* val = (values_from_keys*)getVectorItem(intersected, i);
             temp_results[i].doc_id = val -> doc_id;
-            // логика расчета score 
             temp_results[i].score = n_tokens; 
             strncpy(temp_results[i].title, val -> title, MAX_TITLE_LEN - 1);
-            temp_results[i].title[MAX_TITLE_LEN - 1] = '\0'; // гарантируем закрытие строки
+            temp_results[i].title[MAX_TITLE_LEN - 1] = '\0';
         }
+        // сортируем массив, чтобы все дубликаты были подряд 
         qsort(temp_results, sr -> total, sizeof(SearchResult), compareSearchResults);
-        int top_n;
-        if (sr -> total > 10) {
-            top_n = 10;
+        // считаем реальное количество уникальных документов
+        int unique_total = 0;
+        int last_id_seen = -1;
+        for (int i = 0; i < sr -> total; i++) {
+            if (temp_results[i].doc_id != last_id_seen) {
+                unique_total++;
+                last_id_seen = temp_results[i].doc_id;
+            }
         }
-        else {
-            top_n = sr -> total;
+        // добавляем в финальный результат только уникальные
+        int added = 0;
+        last_id_seen = -1; // сбрасываем для второго прохода
+        
+        for (int i = 0; i < sr -> total; i++) {
+            if (added >= 10) {
+                break;
+            }
+            // если документ еще не добавляли
+            if (temp_results[i].doc_id != last_id_seen) {
+                appendVectorItem(sr -> results, &temp_results[i]);
+                last_id_seen = temp_results[i].doc_id;
+                added++;
+            }
         }
-        // топ-10 результатов в наш вектор
-        for (int i = 0; i < top_n; i++) {
-            appendVectorItem(sr -> results, &temp_results[i]);
-        }
-
+        sr -> total = unique_total;
         free(temp_results);
     }
     if (intersected != NULL && intersected != posting_lists[0]) {
-        freeVector(intersected);
+        vectorFree(intersected);
     }
     free(posting_lists);
     free(query_copy);
@@ -149,7 +162,7 @@ void printResultsText(const SearchResults* sr) {
         printf("search result is NULL\n");
         return;
     }
-    printf("documents: %d (search time: %.2f мс)\n", sr -> total, sr -> time_ms);
+    printf("documents: %d (search time: %.2f ms)\n", sr -> total, sr -> time_ms);
     if (sr -> results == NULL || sr -> results -> size == 0) {
         printf("funny request, cant find it\n");
     } else {
@@ -194,7 +207,7 @@ void printResultsJSON(const SearchResults* sr) {
 void freeSearchResults(SearchResults* sr) {
     if (sr != NULL) {
         if (sr -> results != NULL) {
-            freeVector(sr -> results);
+            vectorFree(sr -> results);
         }
         free(sr);
     }

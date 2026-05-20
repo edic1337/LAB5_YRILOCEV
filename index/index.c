@@ -74,7 +74,81 @@ void indexDocument(Index* idx, int doc_id, const char* title,
         insertTerm(idx, tokens[i], doc_id, title);
     }
     return;
-                       }
+}
+
+void buildIndex(Index* idx, const char* data_path) {
+    FILE* file = fopen(data_path, "r");
+    if (!file) {
+        printf("cant open file'%s'\n", data_path);
+        exit(1);
+    }
+
+    // буфер для чтения одной строки из файла
+    char line[8192]; 
+    printf("start indexing tree");
+    int lines_processed = 0; // счетчик прочитанных строк
+    // читаем файл построчно
+    while (fgets(line, sizeof(line), file)) {
+        // ищем doc_id
+        char* doc_ptr = strstr(line, "\"doc_id\": \"");
+        if (!doc_ptr) {
+            continue; // Если не нашли, пропускаем строку
+        }
+        doc_ptr += 11;          // сдвигаем указатель на само число
+        int doc_id = atoi(doc_ptr); // превращаем строку в число
+
+        // ищем title
+        char* title_ptr = strstr(line, "\"title\": \"");
+        if (!title_ptr) {
+            continue;
+        }
+        title_ptr += 10;        // сдвигаем указатель на начало заголовка
+        
+        char* title_end = strchr(title_ptr, '\"'); // ищем закрывающую кавычку
+        if (!title_end) {
+            continue;
+        }
+        *title_end = '\0';      // отрезаем строку, заменяя кавычку на нуль-терминатор
+
+        // ищем массив tokens
+        char* tokens_ptr = strstr(title_end + 1, "\"tokens\": [");
+        if (!tokens_ptr) {
+            continue;
+        }
+        // массив для хранения указателей на отдельные слова (макс 512 слов на документ)
+        const char* tokens[512]; 
+        int n_tokens = 0;
+
+        // ищем первую кавычку внутри массива
+        char* token_start = strchr(tokens_ptr, '\"');
+        
+        // пока находим открывающие кавычки и не превысили лимит
+        while (token_start && n_tokens < 512) {
+            token_start++; // пропускаем открывающую кавычку
+            
+            char* token_end = strchr(token_start, '\"'); // ищем закрывающую
+            if (!token_end) {
+                break;
+            }
+            *token_end = '\0'; // отрезаем токен
+            
+            // сохраняем токен в наш массив
+            tokens[n_tokens] = token_start;
+            n_tokens++;
+            
+            // ищем начало следующего токена после запятой
+            token_start = strchr(token_end + 1, '\"'); 
+        }
+
+        indexDocument(idx, doc_id, title_ptr, tokens, n_tokens);
+        lines_processed++;
+        // прогресс каждые 100 000 строк, чтобы видеть, что программа не зависла
+        if (lines_processed % 1000 == 0) {
+            printf("indexed: %d / %d rows \n", lines_processed);
+        }
+    }
+    fclose(file);
+}
 
 void traverseIndex(
     const Index* idx,
@@ -82,7 +156,7 @@ void traverseIndex(
     void* ctx
 ) {
     if (idx == NULL|| idx -> tree == NULL) {
-        printf("idx is NULL od tree is NULL");
+        printf("idx is NULL or tree is NULL");
         return ;
     }
     switch (idx -> type) {
@@ -101,7 +175,7 @@ void traverseIndex(
 void saveNode(const char* key, Vector* postings, void* ctx) {
     FILE* file = (FILE*)ctx;
     fprintf(file, "%s %d\n", key, postings -> size); // записывем слово и кол во документов
-    for (int i = 0; i < postings -> size; i++) {
+    for (size_t i = 0; i < postings -> size; i++) {
         values_from_keys* val = (values_from_keys*)getVectorItem(postings, i);
         // пишем ID, затем знак табуляции, затем заголовок и перенос строки
         fprintf(file, "%d\t%s\n", val -> doc_id, val -> title);
